@@ -25,6 +25,7 @@ namespace Quazet
     public class Position
     {
         public string Symbol { get; set; }
+        public int Quantity { get; set; }
         public OpenRange Open { get; set; }
         public List<Alert> Alerts = new List<Alert>();
         public int row;
@@ -34,6 +35,7 @@ namespace Quazet
     {
         public Double Low;
         public Double High;
+        public int Quantity;
     }
 
     public class Alert
@@ -49,6 +51,7 @@ namespace Quazet
     public class OpeningRangesTable : TableEntity
     {
         public string Symbol { get; set; }
+        public int Quantity { get; set; }
         public DateTime Date { get; set; }
         public double Low { get; set; }
         public double High { set; get; }
@@ -68,7 +71,11 @@ namespace Quazet
     public partial class ThisWorkbook
     {
         private List<Position> Positions = new List<Position>();
+#if DEBUG
         public static string topic = "trade-alerts2";
+#else
+        public static string topic = "trade-alerts";
+#endif
         private void ThisWorkbook_Startup(object sender, System.EventArgs e)
         {
             var serviceBusConnectionString = ConfigurationManager.AppSettings["serviceBus"];
@@ -106,7 +113,7 @@ namespace Quazet
                      TableQuery.GenerateFilterConditionForDate("Date", QueryComparisons.GreaterThanOrEqual, DateTime.Today)
                 )
                 .Select(
-                    new string[] { "Symbol", "Date", "Low", "High" }
+                    new string[] { "Symbol", "Quantity", "Date", "Low", "High" }
                 );
 
             //await table.ExecuteQuerySegmentedAsync<OpenRange>(query, null);
@@ -121,7 +128,7 @@ namespace Quazet
             {
                 //Positions[O.Symbol]
                 if (O.High > 0)
-                    Positions.Add(new Position { Symbol = O.Symbol, Open = new OpenRange { Low = O.Low, High = O.High } });
+                    Positions.Add(new Position { Symbol = O.Symbol, Quantity = O.Quantity, Open = new OpenRange { Low = O.Low, High = O.High, Quantity = O.Quantity} });
                 else
                 {
                     pos = Positions.FindIndex(x => x.Symbol == O.Symbol);
@@ -133,16 +140,18 @@ namespace Quazet
                 }
             }
 
-            activeWorksheet.Cells[1, 1] = "Symbol";
+            activeWorksheet.Cells[1, 1] = "Ticker Symbol";
             activeWorksheet.Cells[1, 2] = "Opening Low";
             activeWorksheet.Cells[1, 3] = "Opening High";
             activeWorksheet.Cells[1, 4] = "Opening Spread $";
             activeWorksheet.Cells[1, 5] = "Opening Spread %";
             activeWorksheet.Cells[1, 6] = "Opening Mean";
-            activeWorksheet.Cells[1,1].EntireRow.Style.WrapText = true;
-            activeWorksheet.Cells[1,1].EntireRow.HorizontalAlignment = HorizontalAlignment.Center;
-            //activeWorksheet.Rows[1].Style.VerticalAlignment = ContentAlignment.MiddleCenter;
-            activeWorksheet.Cells[1,1].EntireRow.Style.Font.Bold = true;
+            activeWorksheet.Cells[1, 7] = "Trade Quantity";
+            //activeWorksheet.Cells[2, 7].EntireColumn.HorizontalAlignment = XlHAlign.xlHAlignCenter;
+            activeWorksheet.Cells[1, 1].EntireRow.HorizontalAlignment = XlHAlign.xlHAlignCenter;
+            activeWorksheet.Range[activeWorksheet.Cells[1, 7], activeWorksheet.Cells[99, 7]].HorizontalAlignment = XlHAlign.xlHAlignCenter;
+            activeWorksheet.Cells[1, 1].EntireRow.WrapText = true;
+            activeWorksheet.Cells[1, 1].EntireRow.Style.Font.Bold = true;
             activeWorksheet.Cells[1, 1].EntireRow.Interior.Color = System.Drawing.Color.GhostWhite;
 
             int row = 2;
@@ -155,7 +164,8 @@ namespace Quazet
                 activeWorksheet.Cells[row,3].Value = Math.Round(P.Open.High,2);
                 activeWorksheet.Cells[row, 4].Value = Math.Round(P.Open.High - P.Open.Low,2);
                 activeWorksheet.Cells[row, 5].Value = Math.Round(((P.Open.High - P.Open.Low) / P.Open.High)*100,2);
-                activeWorksheet.Cells[row, 6].Value = (P.Open.High + P.Open.Low)/2;
+                activeWorksheet.Cells[row, 6].Value = Math.Round((P.Open.High + P.Open.Low)/2,2);
+                activeWorksheet.Cells[row, 7].Value = P.Open.Quantity;
                 P.row = row++;
 
                 foreach (Alert A in P.Alerts)
@@ -207,11 +217,15 @@ namespace Quazet
                     {
                         activeWorksheet.Cells[Arow, Acol+0].value = a.Status;
                         activeWorksheet.Cells[Arow, Acol+1].value = a.Trade;
-                        activeWorksheet.Cells[Arow, Acol+2].value = a.Limit;
-                        activeWorksheet.Cells[Arow, Acol+3].value = a.Stop;
+                        activeWorksheet.Cells[Arow, Acol + 2].value = Math.Round(a.Limit, 2);
+                        activeWorksheet.Cells[Arow, Acol+3].value = Math.Round(a.Stop,2);
                         activeWorksheet.Range[activeWorksheet.Cells[Arow, Acol],activeWorksheet.Cells[Arow, Acol + 3]].Interior.Color = System.Drawing.Color.YellowGreen;
                         Microsoft.Office.Tools.Excel.Controls.Button button =
                             new Microsoft.Office.Tools.Excel.Controls.Button();
+                        activeWorksheet.Cells[1, Acol + 0].value = "Alert Status";
+                        activeWorksheet.Cells[1, Acol + 1].value = "Trade Type";
+                        activeWorksheet.Cells[1, Acol + 2].value = "Limit Order";
+                        activeWorksheet.Cells[1, Acol + 3].value = "Stop  Loss";
                         Acol = 100;
                     }
                 }
@@ -222,7 +236,7 @@ namespace Quazet
         {
         }
 
-        #region VSTO Designer generated code
+#region VSTO Designer generated code
 
         /// <summary>
         /// Required method for Designer support - do not modify
@@ -234,7 +248,7 @@ namespace Quazet
             this.Shutdown += new System.EventHandler(ThisWorkbook_Shutdown);
         }
 
-        #endregion
+#endregion
 
     }
 }
