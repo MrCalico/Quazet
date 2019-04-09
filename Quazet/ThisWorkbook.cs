@@ -1,27 +1,48 @@
-﻿using System;
-using System.Data;
-using System.Drawing;
-using System.Windows.Forms;
-using Microsoft.VisualStudio.Tools.Applications.Runtime;
-using Excel = Microsoft.Office.Interop.Excel;
-using Office = Microsoft.Office.Core;
-
-using Microsoft.Azure.ServiceBus;
+﻿using Microsoft.Azure.ServiceBus;
+using Microsoft.Office.Interop.Excel;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Table;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Data;
+using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-using System.Diagnostics;
-
-using Microsoft.WindowsAzure.Storage.Table;
-using Microsoft.WindowsAzure.Storage;
-using System.Media;
-using Newtonsoft.Json;
-using Microsoft.Office.Interop.Excel;
+using System.Windows.Forms;
+using Excel = Microsoft.Office.Interop.Excel;
 
 namespace Quazet // Main NameSpace For Project //
 {
+    public static class BrowserStuff
+    {
+        [DllImport("User32.dll")]
+        static extern int SetForegroundWindow(IntPtr hWnd);
+        static Process process = null;
+
+        public static void RunBrowser()
+        {
+            Process proc = new Process();
+            proc.StartInfo.FileName = "iexplore.exe";
+            proc.StartInfo.Arguments = "http://www.convertit.com";
+            proc.Start();
+            process = proc;
+        }
+
+        public static void RefreshBrowswer(string url)
+        {
+            if (process != null)
+            {
+                IntPtr ptr = process.MainWindowHandle;
+                SetForegroundWindow(ptr);
+                SendKeys.SendWait("{(^O)}{url}{ENTER}");
+            }
+        }
+    }
+
     public class Position
     {
         public string Symbol { get; set; }
@@ -85,15 +106,18 @@ namespace Quazet // Main NameSpace For Project //
             var player = new System.Media.SoundPlayer();
             try
             {
-                player.SoundLocation = System.IO.Path.GetDirectoryName(Application.ActiveWorkbook.FullName)+"\\Resources\\AllABoard2.wav";
+                player.SoundLocation = System.IO.Path.GetDirectoryName(Application.ActiveWorkbook.FullName) + "\\Resources\\AllABoard2.wav";
                 player.Play();
+                BrowserStuff.RunBrowser();
+                BrowserStuff.RefreshBrowswer("http://www.convertit.com/Go/ConvertIt/Measurement/");
+                BrowserStuff.RefreshBrowswer("http://www.convertit.com/Go/ConvertIt/Measurement/Converter.ASP");
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("No Sounds");
                 Debug.WriteLine(System.IO.Path.GetDirectoryName(Application.ActiveWorkbook.FullName));
                 Debug.WriteLine(ex.Message);
-                Console.Beep(); 
+                Console.Beep();
             }
 
             Excel.Worksheet activeWorksheet = ((Excel.Worksheet)Application.ActiveSheet);
@@ -120,7 +144,7 @@ namespace Quazet // Main NameSpace For Project //
             //var list = table.ExecuteQuery(query);
             List<OpeningRangesTable> list = table.CreateQuery<OpeningRangesTable>()
                 .Where(x => x.Date > DateTime.Today).ToList();
-                //.Where(x => x.Date > DateTime.Parse("04/03/2019")).ToList();
+            //.Where(x => x.Date > DateTime.Parse("04/03/2019")).ToList();
 
             int pos = 0;
             list = list.OrderBy(x => (x.Symbol, x.Date)).ToList();
@@ -128,7 +152,7 @@ namespace Quazet // Main NameSpace For Project //
             {
                 //Positions[O.Symbol]
                 if (O.High > 0)
-                    Positions.Add(new Position { Symbol = O.Symbol, Quantity = O.Quantity, Open = new OpenRange { Low = O.Low, High = O.High, Quantity = O.Quantity} });
+                    Positions.Add(new Position { Symbol = O.Symbol, Quantity = O.Quantity, Open = new OpenRange { Low = O.Low, High = O.High, Quantity = O.Quantity } });
                 else
                 {
                     pos = Positions.FindIndex(x => x.Symbol == O.Symbol);
@@ -159,17 +183,17 @@ namespace Quazet // Main NameSpace For Project //
             {
                 //Console.Write($"{P.Symbol.PadRight(5)} {P.Open.Low.ToString("0.00").PadRight(6)} - {P.Open.High.ToString("0.00").PadRight(6)} ");
                 //Excel.Worksheet activeWorksheet = ((Excel.Worksheet)Application.ActiveSheet);
-                activeWorksheet.Cells[row,1].Value = P.Symbol;
+                activeWorksheet.Cells[row, 1].Value = P.Symbol;
                 activeWorksheet.Cells[row, 2].Value = Math.Round(P.Open.Low, 2);
-                activeWorksheet.Cells[row,3].Value = Math.Round(P.Open.High,2);
-                activeWorksheet.Cells[row, 4].Value = Math.Round(P.Open.High - P.Open.Low,2);
-                activeWorksheet.Cells[row, 5].Value = Math.Round(((P.Open.High - P.Open.Low) / P.Open.High)*100,2);
-                activeWorksheet.Cells[row, 6].Value = Math.Round((P.Open.High + P.Open.Low)/2,2);
+                activeWorksheet.Cells[row, 3].Value = Math.Round(P.Open.High, 2);
+                activeWorksheet.Cells[row, 4].Value = Math.Round(P.Open.High - P.Open.Low, 2);
+                activeWorksheet.Cells[row, 5].Value = Math.Round(((P.Open.High - P.Open.Low) / P.Open.High) * 100, 2);
+                activeWorksheet.Cells[row, 6].Value = Math.Round((P.Open.High + P.Open.Low) / 2, 2);
                 activeWorksheet.Cells[row, 7].Value = P.Open.Quantity;
                 P.row = row++;
 
                 foreach (Alert A in P.Alerts)
-                    PushAlert( P.Symbol, A);
+                    PushAlert(P.Symbol, A);
             }
 
             queueClient.RegisterMessageHandler(async (msg, exception) =>
@@ -206,7 +230,8 @@ namespace Quazet // Main NameSpace For Project //
             );
             Debug.WriteLine("Finished Queue.");
 
-            void PushAlert(string symbol, Alert a) {
+            void PushAlert(string symbol, Alert a)
+            {
                 int Apos = Positions.FindIndex(x => x.Symbol == symbol);
                 int Arow = Positions[Apos].row;
                 //activeWorksheet.Cells.Font.Color = System.Drawing.Color.Black;
@@ -215,11 +240,11 @@ namespace Quazet // Main NameSpace For Project //
                 {
                     if (activeWorksheet.Cells[Arow, Acol].Value == null)
                     {
-                        activeWorksheet.Cells[Arow, Acol+0].value = a.Status;
-                        activeWorksheet.Cells[Arow, Acol+1].value = a.Trade;
+                        activeWorksheet.Cells[Arow, Acol + 0].value = a.Status;
+                        activeWorksheet.Cells[Arow, Acol + 1].value = a.Trade;
                         activeWorksheet.Cells[Arow, Acol + 2].value = Math.Round(a.Limit, 2);
-                        activeWorksheet.Cells[Arow, Acol+3].value = Math.Round(a.Stop,2);
-                        activeWorksheet.Range[activeWorksheet.Cells[Arow, Acol],activeWorksheet.Cells[Arow, Acol + 3]].Interior.Color = System.Drawing.Color.YellowGreen;
+                        activeWorksheet.Cells[Arow, Acol + 3].value = Math.Round(a.Stop, 2);
+                        activeWorksheet.Range[activeWorksheet.Cells[Arow, Acol], activeWorksheet.Cells[Arow, Acol + 3]].Interior.Color = System.Drawing.Color.YellowGreen;
                         Microsoft.Office.Tools.Excel.Controls.Button button =
                             new Microsoft.Office.Tools.Excel.Controls.Button();
                         activeWorksheet.Cells[1, Acol + 0].value = "Alert Status";
@@ -230,13 +255,14 @@ namespace Quazet // Main NameSpace For Project //
                     }
                 }
             }
-        }
 
-        private void ThisWorkbook_Shutdown(object sender, System.EventArgs e)
+    }
+
+    private void ThisWorkbook_Shutdown(object sender, System.EventArgs e)
         {
         }
 
-#region VSTO Designer generated code
+        #region VSTO Designer generated code
 
         /// <summary>
         /// Required method for Designer support - do not modify
@@ -248,7 +274,7 @@ namespace Quazet // Main NameSpace For Project //
             this.Shutdown += new System.EventHandler(ThisWorkbook_Shutdown);
         }
 
-#endregion
+        #endregion
 
     }
 }
