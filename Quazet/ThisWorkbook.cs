@@ -108,9 +108,9 @@ namespace Quazet // Main NameSpace For Project //
             {
                 player.SoundLocation = System.IO.Path.GetDirectoryName(Application.ActiveWorkbook.FullName) + "\\Resources\\AllABoard2.wav";
                 player.Play();
-                BrowserStuff.RunBrowser();
-                BrowserStuff.RefreshBrowswer("http://www.convertit.com/Go/ConvertIt/Measurement/");
-                BrowserStuff.RefreshBrowswer("http://www.convertit.com/Go/ConvertIt/Measurement/Converter.ASP");
+                //BrowserStuff.RunBrowser();
+                //BrowserStuff.RefreshBrowswer("http://www.convertit.com/Go/ConvertIt/Measurement/");
+                //BrowserStuff.RefreshBrowswer("http://www.convertit.com/Go/ConvertIt/Measurement/Converter.ASP");
             }
             catch (Exception ex)
             {
